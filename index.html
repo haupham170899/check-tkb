@@ -30,6 +30,20 @@
   .bar-r{justify-content:flex-end}
   .btn.copy{background:#1d8a43;border-color:#1d8a43;color:#fff;font-weight:600;padding:6px 26px;font-size:14px;border-radius:8px}
   .btn.copy:hover{background:#18763a}
+  .modal{position:fixed;inset:0;z-index:30;background:rgba(20,20,20,.45);display:flex;align-items:flex-start;justify-content:center;padding:8vh 12px 12px;overflow:auto}
+  .modal[hidden]{display:none}
+  .mbox{background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.25);font-size:14px;line-height:1.5}
+  .mbox h3{margin:0 0 10px;font-size:17px}
+  .mbox ol{padding-left:20px;margin:8px 0 12px}
+  .mbox li{margin:4px 0}
+  .mbox a{color:#1a5fb4}
+  .mbox input[type=password],.mbox input[type=text]{width:100%;padding:8px 10px;border:1px solid #cfc9bb;border-radius:7px;font:inherit;font-size:13px}
+  .mbox .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .mbox .small{font-size:12px;color:var(--muted);margin-top:12px}
+  .mbox .merr{color:#8a1c12;font-size:13px;min-height:18px;margin:6px 0 0}
+  .mbox .fileinfo{background:#f6f5f1;border-radius:8px;padding:10px 12px;margin:8px 0}
+  .mbox .warn{color:#8a5a00}
+  .mbox .linkbtn{background:none;border:0;padding:0;color:#1a5fb4;text-decoration:underline;cursor:pointer;font:inherit;font-size:12px}
   .webtag{font-size:11px;font-weight:600;color:#1d6b3a;background:#e3f3e8;border-radius:5px;padding:1px 6px;margin-right:4px}
   @media (max-width:980px){ .bar-l,.bar-r{flex-wrap:wrap} .bar{grid-template-columns:1fr} .bar-c{justify-self:center} .bar-r{justify-content:center} .bar-l{justify-content:center} }
   .brand{font-weight:700;letter-spacing:.2px;margin-right:4px;display:flex;align-items:center;gap:7px;font-size:14px}
@@ -186,6 +200,7 @@
 <input type="file" id="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <div class="dropmask">Thả file TKB vào đây</div>
 
+<div class="modal" id="modal" hidden><div class="mbox" role="dialog" aria-modal="true" id="mbody"></div></div>
 <main>
   <div class="msg" id="msg"></div>
   <div id="view"></div>
@@ -584,10 +599,126 @@ const dateKey=s=>{const m=String(s||"").match(/(\d{1,2})[.\-\/_](\d{1,2})[.\-\/_
 const verKey=v=>dateKey(v.data?.effective)||dateKey(v.fileName)||0;
 const sortedVersions=()=>[...state.versions].sort((a,b)=>(verKey(b)-verKey(a))||(dateKey(b.fileName)-dateKey(a.fileName))||(b.importedAt-a.importedAt));
 const verLabel=(x,all)=>{const e=x.data.effective||x.fileName; return all.filter(y=>(y.data.effective||y.fileName)===e).length>1?e+" · "+x.fileName:e;};
+/* ---- Upload straight from the app: a GitHub token (only for this repo) kept in this browser ---- */
+const TOKEN_KEY="tkb-gh-token";
+const getToken=()=>{try{return localStorage.getItem(TOKEN_KEY)||"";}catch(e){return "";}};
+const setToken=t=>{try{ if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY); }catch(e){}};
+const API=()=>`https://api.github.com/repos/${WEB.owner}/${WEB.repo}`;
+const ghHeaders=(extra)=>{const h={Accept:"application/vnd.github+json",...(extra||{})}; const t=getToken(); if(t) h.Authorization="Bearer "+t; return h;};
+// GET with token when we have one; if the token was rejected, retry anonymously (viewing must keep working)
+async function ghGet(url,extra){
+  let r=await fetch(url,{headers:ghHeaders(extra),cache:"no-store"});
+  if(r.status===401&&getToken()){ tokenBad=true; r=await fetch(url,{headers:{Accept:"application/vnd.github+json",...(extra||{})},cache:"no-store"}); }
+  return r;
+}
+let tokenBad=false;
+const encPath=p=>p.split("/").map(encodeURIComponent).join("/");
+function b64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
+const tokenURL=()=>"https://github.com/settings/personal-access-tokens/new?name="+encodeURIComponent("Check TKB")
+  +"&description="+encodeURIComponent("Nạp TKB từ app Check TKB")+"&target_name="+encodeURIComponent(WEB.owner)+"&expires_in=365&contents=write";
+
+function openModal(html){ $("#mbody").innerHTML=html; $("#modal").hidden=false; }
+function closeModal(){ $("#modal").hidden=true; $("#mbody").innerHTML=""; }
+$("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") closeModal(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#modal").hidden) closeModal(); });
+
 function openUpload(){
-  if(!WEB){ $("#file").click(); return; }
-  window.open(`https://github.com/${WEB.owner}/${WEB.repo}/upload/main/${FOLDER}`,"_blank","noopener");
-  flash("Trang GitHub đã mở: kéo file TKB (.xlsx) vào, bấm “Commit changes”. Khoảng 1–2 phút sau quay lại đây bấm “↻ Cập nhật” là mọi máy đều thấy TKB mới.");
+  if(WEB && (!getToken()||tokenBad)) return showTokenSetup();
+  $("#file").click();
+}
+function showTokenSetup(){
+  const has=getToken();
+  openModal(`<h3>${has&&!tokenBad?"Mã khóa nạp TKB":"Kết nối để nạp TKB (chỉ làm 1 lần)"}</h3>
+    ${tokenBad?'<p class="merr">Mã khóa trên máy này đã hết hạn hoặc bị thu hồi. Hãy tạo mã mới theo các bước dưới.</p>':""}
+    ${has&&!tokenBad?'<p>Máy này đã có mã khóa, có thể nạp TKB ngay trong app. Muốn dùng mã khác thì dán vào ô dưới.</p>':`<ol>
+      <li><a href="${tokenURL()}" target="_blank" rel="noopener"><b>Bấm vào đây</b></a> để mở trang tạo mã khóa trên GitHub (tên, hạn dùng 1 năm và quyền đã điền sẵn).</li>
+      <li>Ở mục <b>Repository access</b>, chọn <b>Only select repositories</b> rồi chọn <b>${esc(WEB.repo)}</b>.</li>
+      <li>Kéo xuống cuối, bấm <b>Generate token</b> (bấm xác nhận nếu được hỏi), rồi bấm nút copy cạnh mã vừa tạo (bắt đầu bằng <code>github_pat_</code>).</li>
+      <li>Quay lại đây, dán mã vào ô dưới và bấm <b>Lưu mã khóa</b>.</li></ol>`}
+    <input type="password" id="tokIn" placeholder="github_pat_..." autocomplete="off">
+    <p class="merr" id="tokErr"></p>
+    <div class="acts"><button class="btn primary" id="tokSave">Lưu mã khóa</button>
+      ${has?'<button class="btn" id="tokDel">Xóa mã khóa khỏi máy này</button>':""}
+      <button class="btn ghost" id="tokCancel">Đóng</button></div>
+    <p class="small">Mã khóa chỉ lưu trong trình duyệt của máy này và chỉ có quyền ghi vào kho <b>${esc(WEB.repo)}</b>. Không gửi mã cho người khác.
+      Máy không có mã khóa vẫn xem TKB bình thường.<br>
+      Không muốn dùng mã khóa? <a href="https://github.com/${WEB.owner}/${WEB.repo}/upload/main/${FOLDER}" target="_blank" rel="noopener">Tải file lên qua trang GitHub</a>.</p>`);
+  $("#tokCancel").onclick=closeModal;
+  if($("#tokDel")) $("#tokDel").onclick=()=>{ setToken(""); tokenBad=false; closeModal(); flash("Đã xóa mã khóa khỏi máy này. Máy này giờ chỉ xem được TKB."); };
+  $("#tokSave").onclick=async()=>{
+    const t=$("#tokIn").value.trim(), err=$("#tokErr");
+    if(!t) return err.textContent="Hãy dán mã khóa vào ô trên.";
+    err.textContent="Đang kiểm tra mã khóa…";
+    try{
+      const r=await fetch(API(),{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+t},cache:"no-store"});
+      if(r.status===401) return err.textContent="Mã khóa không đúng hoặc đã hết hạn. Hãy copy lại cả đoạn mã.";
+      if(r.status===404||r.status===403) return err.textContent=`Mã khóa chưa được cấp quyền cho kho “${WEB.repo}”. Ở mục Repository access hãy chọn Only select repositories → ${WEB.repo}.`;
+      if(!r.ok) return err.textContent="GitHub báo lỗi "+r.status+". Thử lại sau ít phút.";
+      setToken(t); tokenBad=false;
+      openModal(`<h3>Đã lưu mã khóa ✓</h3><p>Từ giờ trên máy này chỉ cần bấm <b>Nạp file TKB mới</b> và chọn file Excel.</p>
+        <div class="acts"><button class="btn primary" id="pickNow">Chọn file TKB ngay</button><button class="btn ghost" id="pickLater">Để sau</button></div>`);
+      $("#pickNow").onclick=()=>{ closeModal(); $("#file").click(); };
+      $("#pickLater").onclick=closeModal;
+    }catch(e){ err.textContent="Không kết nối được GitHub. Kiểm tra mạng rồi thử lại."; }
+  };
+}
+
+function publishName(file,data){
+  let n=file.name.replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+  if(!/\.xls[xm]$/i.test(n)) n+=".xlsx";
+  const m=String(data.effective||"").match(/(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+  if(!dateKey(n)&&m) n=`Thời khóa biểu ${m[1].padStart(2,"0")}.${m[2].padStart(2,"0")}.${m[3]}.xlsx`;
+  return n;
+}
+function askPublish(file,buf,data){
+  const name=publishName(file,data);
+  const same=state.versions.find(v=>v.web&&v.fileName===name);
+  openModal(`<h3>Đăng TKB này lên web?</h3>
+    <div class="fileinfo"><b>${esc(name)}</b><br>${esc(data.effective||"Không thấy ngày áp dụng")} · ${data.levels.map(l=>esc(l.name)).join(", ")} · ${data.codes.length} giáo viên</div>
+    ${same?'<p class="warn">Trên web đã có file cùng tên, file này sẽ thay thế nó.</p>':""}
+    <p>Sau khoảng 1 phút, mọi máy mở app (cả điện thoại) sẽ thấy bản TKB này.</p>
+    <p class="merr" id="pubErr"></p>
+    <div class="acts"><button class="btn primary" id="pubGo">Đăng lên web</button>
+      <button class="btn" id="pubLocal">Chỉ xem trên máy này</button>
+      <button class="btn ghost" id="pubCancel">Hủy</button></div>
+    <p class="small"><button class="linkbtn" id="pubTok">Đổi / xóa mã khóa trên máy này</button></p>`);
+  $("#pubCancel").onclick=closeModal;
+  $("#pubTok").onclick=showTokenSetup;
+  $("#pubLocal").onclick=()=>{ closeModal(); addLocal(file,data); };
+  $("#pubGo").onclick=async()=>{
+    const btn=$("#pubGo"), err=$("#pubErr"); btn.disabled=true; btn.textContent="Đang đăng…"; err.textContent="";
+    try{ await publish(name,buf,data); closeModal(); }
+    catch(e){ btn.disabled=false; btn.textContent="Đăng lên web"; err.textContent=e.message;
+      if(e.code===401){ tokenBad=true; err.innerHTML=esc(e.message)+' <button class="linkbtn" id="pubFix">Tạo mã mới</button>'; $("#pubFix").onclick=showTokenSetup; } }
+  };
+}
+async function publish(name,buf,data){
+  const url=`${API()}/contents/${encPath(FOLDER+"/"+name)}`;
+  const fail=(code,msg)=>{const e=new Error(msg);e.code=code;return e;};
+  let sha;
+  const g=await fetch(url+"?ref=main",{headers:ghHeaders(),cache:"no-store"});
+  if(g.status===401) throw fail(401,"Mã khóa đã hết hạn hoặc bị thu hồi.");
+  if(g.ok) sha=(await g.json()).sha;
+  const body={message:"Nạp TKB "+(data.effective||name),content:b64(buf),branch:"main"}; if(sha) body.sha=sha;
+  const r=await fetch(url,{method:"PUT",headers:ghHeaders({"Content-Type":"application/json"}),body:JSON.stringify(body)});
+  if(r.status===401) throw fail(401,"Mã khóa đã hết hạn hoặc bị thu hồi.");
+  if(r.status===403||r.status===404) throw fail(r.status,"Mã khóa chưa có quyền ghi. Khi tạo mã, mục Permissions → Contents phải là “Read and write”, và Repository access chọn đúng kho "+WEB.repo+".");
+  if(r.status===409) throw fail(409,"File vừa bị thay đổi ở nơi khác. Bấm Đăng lên web lần nữa.");
+  if(!r.ok) throw fail(r.status,"GitHub báo lỗi "+r.status+". Thử lại sau ít phút.");
+  const j=await r.json(); const id="web:"+j.content.sha;
+  state.versions=state.versions.filter(v=>!(v.web&&v.fileName===name)&&v.id!==id);
+  state.versions.push({id,fileName:name,importedAt:Date.now(),data,web:true});
+  state.current=id; state.lastWebNewest=sortedVersions().find(v=>v.web)?.id;
+  save(); render();
+  flash(`Đã đăng “${name}” lên web. Khoảng 1 phút nữa mọi máy (cả điện thoại) sẽ thấy TKB này.`);
+}
+function addLocal(file,data){
+  const id=Date.now().toString(36);
+  state.versions=state.versions.filter(x=>!(!x.web && x.fileName===file.name && x.data.effective===data.effective));
+  state.versions.push({id,fileName:file.name,importedAt:Date.now(),data});
+  const locals=state.versions.filter(v=>!v.web); if(locals.length>8){ const drop=new Set(locals.slice(0,locals.length-8).map(v=>v.id)); state.versions=state.versions.filter(v=>!drop.has(v.id)); }
+  state.current=id; save(); render();
+  flash(`Đã nạp “${file.name}” (chỉ trên máy này): ${data.levels.map(l=>l.name).join(", ")}, ${data.codes.length} mã giáo viên${data.effective?" · "+data.effective:""}.`);
 }
 async function syncWeb(force){
   if(!WEB) return;
@@ -596,7 +727,7 @@ async function syncWeb(force){
   const hadData=state.versions.some(v=>v.web);
   if(!hadData){ webState="loading"; if(!cur()) render(); }
   try{
-    const r=await fetch(`https://api.github.com/repos/${WEB.owner}/${WEB.repo}/contents/${FOLDER}?ref=main&t=${Date.now()}`,{cache:"no-store"});
+    const r=await ghGet(`${API()}/contents/${FOLDER}?ref=main&t=${Date.now()}`);
     if(r.status===404){ webState="empty"; state.versions=state.versions.filter(v=>!v.web); save(); render(); return; }
     if(!r.ok) throw new Error("GitHub "+r.status);
     const files=(await r.json()).filter(f=>f.type==="file"&&/\.xls[xm]$/i.test(f.name))
@@ -607,7 +738,8 @@ async function syncWeb(force){
     for(const f of files){
       const id="web:"+f.sha; if(state.versions.some(v=>v.id===id)) continue;
       try{
-        const fr=await fetch(`${FOLDER}/${encodeURIComponent(f.name)}?v=${f.sha}`);
+        let fr=await fetch(`${FOLDER}/${encodeURIComponent(f.name)}?v=${f.sha}`);
+        if(!fr.ok) fr=await ghGet(`${API()}/git/blobs/${f.sha}`,{Accept:"application/vnd.github.raw"});   // Pages chưa kịp cập nhật
         if(!fr.ok) throw new Error(fr.status);
         const data=parseWorkbook(await readXlsx(await fr.arrayBuffer()));
         state.versions.push({id,fileName:f.name,importedAt:Date.now(),data,web:true}); added++;
@@ -631,14 +763,10 @@ async function importFile(file){
   if(!file) return;
   if(/\.xls$/i.test(file.name)) return flash("File .xls (Excel cũ) chưa đọc được. Mở bằng Excel rồi “Lưu thành” .xlsx giúp mình nhé.","err");
   try{
-    const sheets=await readXlsx(await file.arrayBuffer());
-    const data=parseWorkbook(sheets);
-    const id=Date.now().toString(36);
-    state.versions=state.versions.filter(x=>!(x.fileName===file.name && x.data.effective===data.effective));
-    state.versions.push({id,fileName:file.name,importedAt:Date.now(),data});
-    if(state.versions.length>8) state.versions.splice(0,state.versions.length-8);
-    state.current=id; save(); render();
-    flash(`Đã nạp “${file.name}”: ${data.levels.map(l=>l.name).join(", ")}, ${data.codes.length} mã giáo viên${data.effective?" · "+data.effective:""}.`);
+    const buf=await file.arrayBuffer();
+    const data=parseWorkbook(await readXlsx(buf.slice(0)));
+    if(WEB && getToken() && !tokenBad) askPublish(file,buf,data);
+    else addLocal(file,data);
   }catch(e){ console.error(e); flash("Không đọc được file: "+e.message,"err"); }
 }
 
@@ -709,12 +837,21 @@ $("#btnCopy").onclick=async e=>{
 };
 $("#btnClear").onclick=e=>{
   const v=cur(), btn=e.currentTarget; if(!v) return;
-  if(v.web){ window.open(`https://github.com/${WEB.owner}/${WEB.repo}/tree/main/${FOLDER}`,"_blank","noopener");
+  if(v.web && !(getToken()&&!tokenBad)){ window.open(`https://github.com/${WEB.owner}/${WEB.repo}/tree/main/${FOLDER}`,"_blank","noopener");
     return flash("Bản này nằm trên web. Muốn xóa, hãy xóa file đó trong thư mục tkb trên GitHub (trang vừa mở).","err"); }
   if(!btn.dataset.armed){ btn.dataset.armed="1"; btn.textContent="Bấm lần nữa để xóa"; btn.style.color="#a3261c";
     clearTimeout(btn._t); btn._t=setTimeout(()=>{delete btn.dataset.armed;btn.textContent="Xóa bản này";btn.style.color="";},3500); return; }
   delete btn.dataset.armed; btn.textContent="Xóa bản này"; btn.style.color="";
-  state.versions=state.versions.filter(x=>x.id!==v.id); state.current=state.versions.at(-1)?.id||null; save(); render();
+  if(v.web){
+    fetch(`${API()}/contents/${encPath(FOLDER+"/"+v.fileName)}`,{method:"DELETE",headers:ghHeaders({"Content-Type":"application/json"}),
+      body:JSON.stringify({message:"Xóa TKB "+(v.data.effective||v.fileName),sha:v.id.slice(4),branch:"main"})})
+    .then(r=>{ if(!r.ok) throw new Error(r.status);
+      state.versions=state.versions.filter(x=>x.id!==v.id); state.current=sortedVersions()[0]?.id||null; save(); render();
+      flash(`Đã xóa “${v.fileName}” khỏi web.`); })
+    .catch(()=>flash("Không xóa được file trên web. Kiểm tra mã khóa hoặc mạng rồi thử lại.","err"));
+    return;
+  }
+  state.versions=state.versions.filter(x=>x.id!==v.id); state.current=sortedVersions()[0]?.id||null; save(); render();
 };
 let dragDepth=0;
 window.addEventListener("dragenter",e=>{e.preventDefault();dragDepth++;document.body.classList.add("dragging");});
