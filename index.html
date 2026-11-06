@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huyền Trang BMS - Check TKB</title>
+<meta name="theme-color" content="#a3261c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Check TKB">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --hdr:#FFF2CC; --hdr-text:#C00000; --line:#9a9a9a; --alt:#F2F2F2;
+    --yellow:#FFFF00; --blue:#0000FF; --sub:#2E75B6;
+    --ui:#1f2937; --muted:#6b7280; --bg:#f6f5f1; --card:#fff; --accent:#a3261c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ui);background:var(--bg);min-height:100vh}
+  button,select,input{font:inherit}
+
+  /* ---------- toolbar ---------- */
+  .bar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #e5e2da;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:7px 14px;font-size:13px}
+  .bar-l,.bar-r{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;min-width:0}
+  .bar-l .brand,.bar-l .seg,.bar-r .btn{flex:none;white-space:nowrap}
+  .bar-l .chip{flex:0 1 auto;min-width:40px}
+  .bar-l .vsel{flex:0 1 auto;min-width:60px}
+  .bar-r{justify-content:flex-end}
+  .btn.copy{background:#1d8a43;border-color:#1d8a43;color:#fff;font-weight:600;padding:6px 26px;font-size:14px;border-radius:8px}
+  .btn.copy:hover{background:#18763a}
+  .webtag{font-size:11px;font-weight:600;color:#1d6b3a;background:#e3f3e8;border-radius:5px;padding:1px 6px;margin-right:4px}
+  @media (max-width:980px){ .bar-l,.bar-r{flex-wrap:wrap} .bar{grid-template-columns:1fr} .bar-c{justify-self:center} .bar-r{justify-content:center} .bar-l{justify-content:center} }
+  .brand{font-weight:700;letter-spacing:.2px;margin-right:4px;display:flex;align-items:center;gap:7px;font-size:14px}
+  .brand i{display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:3px}
+  .chip{font-size:12px;color:var(--muted);background:#f3f1ec;border-radius:999px;padding:4px 10px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip b{color:var(--ui);font-weight:600}
+  .spacer{flex:1}
+  .btn{border:1px solid #d6d2c8;background:#fff;border-radius:7px;padding:5px 11px;cursor:pointer;font-size:13px;color:var(--ui);white-space:nowrap}
+  .btn:hover{background:#faf8f3}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.07)}
+  .btn.ghost{border-color:transparent;color:var(--muted)}
+  .btn.done,.btn.copy.done{background:#0f5a2a;border-color:#0f5a2a;color:#fff}
+  .btn.sm{padding:4px 10px;font-size:12px}
+  .vsel{border:1px solid #d6d2c8;border-radius:7px;padding:4px 6px;background:#fff;font-size:12px;max-width:220px}
+  .seg{display:inline-flex;border:1px solid #d6d2c8;border-radius:8px;overflow:hidden;margin-left:6px}
+  .seg button{border:0;background:#fff;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ui)}
+  .seg button+button{border-left:1px solid #d6d2c8}
+  .seg button.on{background:#2b2b2b;color:#fff;font-weight:600}
+
+  main{padding:16px 14px 40px}
+  .msg{max-width:900px;margin:0 auto 10px;padding:7px 12px;border-radius:7px;font-size:13px;display:none}
+  .msg.err{display:block;background:#fdecea;color:#8a1c12;border:1px solid #f5c2bc}
+  .msg.ok{display:block;background:#eaf6ec;color:#1d5b2b;border:1px solid #bfe3c6}
+
+  /* ---------- empty state ---------- */
+  .drop{max-width:560px;margin:7vh auto 0;background:var(--card);border:2px dashed #cfc9bb;border-radius:14px;padding:32px 24px;text-align:center;font-size:14px}
+  .drop h2{margin:0 0 6px;font-size:18px}
+  .drop p{color:var(--muted);margin:5px 0;line-height:1.5}
+  .drop .btn{margin-top:14px;font-size:14px;padding:8px 16px}
+  .drop ol{text-align:left;display:inline-block;color:var(--muted);margin:14px 0 0;padding-left:20px;line-height:1.7;font-size:13px}
+  body.dragging .drop, body.dragging .sheetwrap, body.dragging .cmpwrap{outline:3px solid var(--accent);outline-offset:6px}
+  .dropmask{display:none;position:fixed;inset:0;background:rgba(163,38,28,.08);z-index:20;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--accent)}
+  body.dragging .dropmask{display:flex}
+
+  /* ---------- timetable sheet (mirrors the Excel look, ~67% scale) ---------- */
+  .sheetwrap{overflow-x:auto;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:16px 18px;max-width:max-content;margin:0 auto}
+  .sheet{display:flex;gap:24px;align-items:flex-start;font-family:"Times New Roman",Times,serif;color:#000}
+  .sheet h1{font-size:21px;margin:0;text-align:center;font-weight:700;letter-spacing:.2px}
+  .sub{text-align:center;color:var(--sub);font-style:italic;font-weight:700;font-size:13px;margin:3px 0 8px;font-family:"Times New Roman",Times,serif}
+  table.tkb,table.stat{border-collapse:collapse}
+  table.tkb th,table.tkb td,table.stat td{border:1px solid var(--line)}
+  table.tkb th{background:var(--hdr);color:var(--hdr-text);font-size:14px;font-weight:700;height:34px;padding:0 6px}
+  table.tkb td{height:56px;text-align:center;font-size:14px;padding:3px 6px;vertical-align:middle}
+  table.tkb tbody tr:nth-child(even) td{background:var(--alt)}
+  table.tkb td.p{font-weight:700;width:72px;white-space:nowrap}
+  table.tkb td.t{font-weight:700;width:134px;white-space:nowrap}
+  table.tkb td.t small{display:block;font-weight:400;font-size:10px;color:#444}
+  table.tkb th.d,table.tkb td.c{width:140px}
+  table.tkb td.c span{display:block;line-height:1.3}
+  table.tkb td.c span.conf{color:#C00000}
+
+  .side{padding-top:50px;width:220px;flex:none}
+  .pick{border:1px solid var(--line);width:175px}
+  .pick-h{background:var(--hdr);color:var(--hdr-text);font-weight:700;font-size:14px;padding:8px 6px;text-align:center;border-bottom:1px solid var(--line)}
+  .pick-v{display:block;width:100%;background:var(--yellow);color:var(--blue);font-family:"Times New Roman",Times,serif;font-weight:700;font-size:18px;text-align:center;text-align-last:center;border:0;height:54px;appearance:none;-webkit-appearance:none;cursor:pointer;padding:0 6px}
+  .pick-v:focus{outline:2px solid var(--blue);outline-offset:-3px}
+  .pv{display:none}
+  table.stat{margin-top:56px;width:100%}
+  table.stat td{font-size:14px;height:42px;padding:0 8px}
+  table.stat td.h{background:var(--hdr);color:var(--hdr-text);text-align:center;font-weight:700;height:52px}
+  table.stat td.k{font-weight:700}
+  table.stat td.v{text-align:center;width:74px}
+  table.stat tr.tot td{color:#C00000;background:var(--alt)}
+  table.stat tr.tot td.v{font-weight:700}
+  table.stat tr.extra td{font-size:12px;height:30px}
+  table.stat tr.extra td.v{font-size:12px}
+
+  .hint{max-width:900px;margin:10px auto 0;color:var(--muted);font-size:12px;text-align:center}
+
+  /* ---------- compare view ---------- */
+  .cmpwrap{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px 16px 18px;max-width:1500px;margin:0 auto}
+  .cmptools{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--ui);padding-bottom:10px;border-bottom:1px solid #eee;margin-bottom:12px;flex-wrap:wrap}
+  .cmptools label{display:flex;align-items:center;gap:6px;cursor:pointer}
+  .cmptools .cnt{color:var(--muted);display:flex;align-items:center;gap:6px}
+  .cmptools .cnt i{display:inline-block;width:14px;height:14px;background:#FFF7CF;border:1px solid #e3d27a}
+  .cmptools .shared{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .cmptools .chip-c{font-family:"Times New Roman",Times,serif;font-weight:700;font-size:14px;padding:2px 9px;border-radius:5px;border:1px solid rgba(0,0,0,.18);color:#000}
+  .cmptools .none{color:var(--muted)}
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:22px;font-family:"Times New Roman",Times,serif;color:#000}
+  .cpanel{min-width:0}
+  .cpick{display:flex;border:1px solid var(--line);width:max-content;margin:0 auto 8px}
+  .cpick-h{background:var(--hdr);color:var(--hdr-text);font-weight:700;font-size:13px;padding:0 10px;display:flex;align-items:center;border-right:1px solid var(--line)}
+  .cpick .pick-v{width:150px;height:34px;font-size:16px}
+  .ctitle{font-size:17px;margin:0;text-align:center;font-weight:700}
+  .cstat{text-align:center;font-size:13px;margin:-2px 0 8px}
+  .cstat .tot{color:#C00000;font-weight:700}
+  table.tkb.sm{width:100%;table-layout:fixed}
+  table.tkb.sm th{font-size:13px;height:30px;padding:0 3px}
+  table.tkb.sm th.d{width:auto}
+  table.tkb.sm th.hp{width:11%}
+  table.tkb.sm th.ht{width:19%}
+  table.tkb.sm td,table.tkb.sm td.p,table.tkb.sm td.t,table.tkb.sm td.c{font-size:13px;height:48px;padding:2px 3px;width:auto}
+  table.tkb.sm td.p,table.tkb.sm td.t{white-space:normal}
+  table.tkb.sm tbody tr td.c.mk{font-weight:700}
+
+  @media (max-width:900px){ .cmp{grid-template-columns:1fr} }
+  @media (max-width:760px){
+    body{font-size:13px}
+    .bar{padding:6px 8px;gap:6px}
+    .bar-l .chip,.bar-l .vsel{max-width:46vw}
+    .brand{font-size:13px}
+    main{padding:10px 6px 30px}
+    .sheetwrap,.cmpwrap{padding:8px;border-radius:8px;max-width:100%}
+    .sheet h1{font-size:15px}
+    .ctitle{font-size:14px}
+    .sub{font-size:11px;margin:2px 0 6px}
+    table.tkb{width:100%;table-layout:fixed}
+    table.tkb th{font-size:11px;height:28px;padding:0 1px}
+    table.tkb th.hp{width:11%} table.tkb th.ht{width:15%} table.tkb th.d{width:auto}
+    table.tkb td,table.tkb td.p,table.tkb td.t,table.tkb td.c{font-size:11px;height:42px;padding:2px 1px;width:auto;white-space:normal;word-break:break-word}
+    table.tkb td.t{font-size:10px}
+    table.stat td{font-size:13px;height:34px}
+    table.stat td.h{height:38px}
+    .pick-v{height:44px;font-size:17px}
+    .pick-h{font-size:13px;padding:6px}
+    .cmptools{font-size:12px;gap:8px}
+    .cstat{font-size:11px}
+    .bar{position:static}
+    .bar-l .chip,#btnClear{display:none}
+    .bar-l{gap:6px}
+    .sheet{display:flex;flex-direction:column;gap:0}
+    .sheet>div:first-child{width:100%;min-width:0}
+    .side{order:-1;display:grid;grid-template-columns:1fr 1.15fr;gap:8px;align-items:start;width:100%;padding:0;margin-bottom:10px}
+    .pick{width:100%}
+    .pick-v{height:72px}
+    table.stat{margin-top:0}
+    table.stat td{font-size:12px;height:24px;padding:0 5px}
+    table.stat td.h{height:24px;font-size:11px}
+    table.stat td.v{width:52px}
+    table.stat tr.extra td,table.stat tr.extra td.v{font-size:11px;height:22px}
+  }
+</style>
+</head>
+<body>
+<div class="bar" id="bar" hidden>
+  <div class="bar-l">
+    <span class="brand"><i></i>Huyền Trang BMS - Check TKB</span>
+    <span class="chip" id="chip"></span>
+    <select class="vsel" id="vsel" title="Các bản TKB đã nạp"></select>
+    <span class="seg" role="tablist">
+      <button data-mode="one" class="on">Xem TKB cá nhân</button><button data-mode="cmp">So sánh TKB</button>
+    </span>
+  </div>
+  <div class="bar-c">
+    <button class="btn copy" id="btnCopy" title="Copy ảnh TKB để dán vào Zalo">Copy ảnh</button>
+  </div>
+  <div class="bar-r">
+    <button class="btn ghost" id="btnSync" hidden title="Tải lại TKB mới nhất trên web">↻ Cập nhật</button>
+    <button class="btn primary" id="btnLoad">Nạp file TKB mới</button>
+    <button class="btn ghost" id="btnClear" title="Xóa bản TKB đang xem khỏi máy">Xóa bản này</button>
+  </div>
+</div>
+<input type="file" id="file" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+<div class="dropmask">Thả file TKB vào đây</div>
+
+<main>
+  <div class="msg" id="msg"></div>
+  <div id="view"></div>
+</main>
+
+<script>
+"use strict";
+/* =========================================================
+   1. Minimal .xlsx reader (zip + XML) — no external library
+   ========================================================= */
+async function openZip(buf){
+  const u8=new Uint8Array(buf), dv=new DataView(buf);
+  let eocd=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-65557);i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
+  if(eocd<0) throw new Error("File không phải định dạng .xlsx (Excel 2007 trở lên).");
+  const count=dv.getUint16(eocd+10,true); let p=dv.getUint32(eocd+16,true);
+  const dec=new TextDecoder(), entries={};
+  for(let k=0;k<count;k++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true),
+          nlen=dv.getUint16(p+28,true), elen=dv.getUint16(p+30,true), clen=dv.getUint16(p+32,true),
+          off=dv.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nlen));
+    entries[name.toLowerCase()]={method,csize,off};
+    p+=46+nlen+elen+clen;
+  }
+  return {
+    async text(name){
+      const e=entries[name.toLowerCase()]; if(!e) return null;
+      const start=e.off+30+dv.getUint16(e.off+26,true)+dv.getUint16(e.off+28,true);
+      const data=u8.subarray(start,start+e.csize);
+      if(e.method===0) return dec.decode(data);
+      if(e.method!==8) throw new Error("File nén theo kiểu chưa hỗ trợ.");
+      if(typeof DecompressionStream==="undefined") throw new Error("Trình duyệt quá cũ, hãy dùng Chrome/Edge/Safari/Firefox bản mới.");
+      const out=await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer();
+      return dec.decode(out);
+    }
+  };
+}
+const tags=(n,name)=>Array.from(n.getElementsByTagNameNS("*",name));
+function colIdx(L){let n=0;for(const ch of L)n=n*26+(ch.charCodeAt(0)-64);return n-1;}
+function parseRef(ref){const m=/^\$?([A-Z]+)\$?(\d+)$/.exec(ref||"");return m?{c:colIdx(m[1]),r:+m[2]-1}:null;}
+
+async function readXlsx(buf){
+  const z=await openZip(buf);
+  const xml=async n=>{const t=await z.text(n);return t==null?null:new DOMParser().parseFromString(t,"application/xml");};
+  const wb=await xml("xl/workbook.xml");
+  if(!wb) throw new Error("Không đọc được nội dung workbook. Hãy lưu file dưới dạng .xlsx rồi thử lại.");
+  const rels=await xml("xl/_rels/workbook.xml.rels"), relMap={};
+  if(rels) tags(rels,"Relationship").forEach(r=>relMap[r.getAttribute("Id")]=r.getAttribute("Target"));
+  const ss=await xml("xl/sharedStrings.xml");
+  const sst=ss?tags(ss,"si").map(si=>tags(si,"t").filter(t=>t.parentNode.localName!=="rPh").map(t=>t.textContent).join("")):[];
+  const sheets=[];
+  for(const s of tags(wb,"sheet")){
+    const rid=s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id")||s.getAttribute("r:id");
+    let target=relMap[rid]; if(!target) continue;
+    target=target.startsWith("/")?target.slice(1):"xl/"+target.replace(/^\.\//,"");
+    const doc=await xml(target); if(!doc) continue;
+    const grid=[]; let rPrev=-1;
+    for(const row of tags(doc,"row")){
+      const ra=row.getAttribute("r"); const r=ra?+ra-1:rPrev+1; rPrev=r; let cPrev=-1;
+      for(const c of tags(row,"c")){
+        const pr=parseRef(c.getAttribute("r")); const col=pr?pr.c:cPrev+1; cPrev=col;
+        const t=c.getAttribute("t"), v=tags(c,"v")[0]; let val="";
+        if(t==="s") val=v?(sst[+v.textContent]??""):"";
+        else if(t==="inlineStr") val=tags(c,"t").map(x=>x.textContent).join("");
+        else val=v?v.textContent:"";
+        if(val==="") continue;
+        (grid[r]||(grid[r]=[]))[col]=val;
+      }
+    }
+    for(const m of tags(doc,"mergeCell")){
+      const [a,b]=(m.getAttribute("ref")||"").split(":"); const A=parseRef(a),B=parseRef(b);
+      if(!A||!B) continue; const v=grid[A.r]?.[A.c]; if(v==null) continue;
+      if((B.r-A.r+1)*(B.c-A.c+1)>400) continue;
+      for(let r=A.r;r<=B.r;r++) for(let c=A.c;c<=B.c;c++){ const row=grid[r]||(grid[r]=[]); if(row[c]==null) row[c]=v; }
+    }
+    sheets.push({name:s.getAttribute("name")||"Sheet",grid});
+  }
+  return sheets;
+}
+
+/* =========================================================
+   2. Understand the school timetable layout
+   ========================================================= */
+const norm=s=>String(s??"").normalize("NFC").replace(/\s+/g," ").trim();
+const key=s=>norm(s).toLowerCase();
+const DAYS={"hai":2,"ba":3,"tư":4,"tu":4,"năm":5,"nam":5,"sáu":6,"sau":6,"bảy":7,"bay":7,"chủ nhật":8,"cn":8};
+function parseDay(s){const k=key(s).replace(/^thứ\s*/,""); if(/^[2-7]$/.test(k)) return +k; return DAYS[k]??null;}
+const dayLabel=d=>d===8?"Chủ nhật":"Thứ "+d;
+const normTime=s=>norm(s).replace(/\s*[-–—]\s*/g," – ");
+const SKIP=new Set(["hđtn-cc","hn-sh"]);   // chào cờ, sinh hoạt: cả trường, không gắn GV
+
+function findHeader(grid){
+  for(let r=0;r<Math.min(grid.length,40);r++){
+    const row=grid[r]; if(!row) continue; let cThu=-1,cTiet=-1,cTime=-1;
+    row.forEach((v,c)=>{const k=key(v); if(k==="thứ"||k==="thu") cThu=c; else if(k==="tiết"||k==="tiet") cTiet=c; else if(k.startsWith("thời gian")) cTime=c;});
+    if(cThu>=0&&cTiet>=0) return {r,cThu,cTiet,cTime};
+  }
+  return null;
+}
+
+function parseWorkbook(sheets){
+  const levels=[], raw=[];
+  for(const sh of sheets){
+    const g=sh.grid, h=findHeader(g); if(!h) continue;
+    const classes=[]; const hr=g[h.r];
+    for(let c=Math.max(h.cThu,h.cTiet,h.cTime)+1; hr[c]!=null && norm(hr[c])!==""; c++) classes.push({c,name:norm(hr[c]).replace(/^[-–]+/,"")});
+    if(!classes.length) continue;
+    let effective="", title="";
+    for(let r=0;r<h.r;r++) (g[r]||[]).forEach(v=>{const t=norm(v); if(/áp dụng/i.test(t)&&!effective) effective=t.replace(/^\(|\)$/g,""); else if(/thời khóa biểu|thời khoá biểu/i.test(t)&&!title) title=t;});
+    const lv={name:norm(sh.name),effective,title,times:{},info:{}};
+    let day=null, started=false;
+    for(let r=h.r+1;r<g.length;r++){
+      const row=g[r]; if(!row) continue;
+      const lab=norm(row[h.cThu]); const per=parseInt(norm(row[h.cTiet]),10);
+      if(lab){ const d=parseDay(lab); if(d!=null) day=d; else if(started) day=null; else if(isNaN(per)){
+        const info={}; classes.forEach(cl=>{const v=norm(row[cl.c]); if(v) info[cl.name]=v;});
+        if(Object.keys(info).length) lv.info[lab]=info; continue; } }
+      if(day==null||isNaN(per)) continue;
+      started=true;
+      if(h.cTime>=0 && row[h.cTime] && !lv.times[per]) lv.times[per]=normTime(row[h.cTime]);
+      for(const cl of classes){
+        const v=norm(row[cl.c]); if(!v) continue;
+        raw.push({lv:levels.length,d:day,p:per,cls:cl.name,val:v});
+      }
+    }
+    levels.push(lv);
+  }
+  if(!levels.length) throw new Error("Không tìm thấy bảng TKB nào (cần có hàng tiêu đề gồm “Thứ”, “Tiết”, “Thời gian” và tên các lớp).");
+
+  // split each cell into subject + teacher strings
+  const pieces=[];
+  for(const x of raw){
+    for(const part of x.val.split("/")){
+      const p=norm(part); if(!p||SKIP.has(key(p))) continue;
+      const segs=p.split("-").map(norm).filter(Boolean);
+      const subj=segs[0]; const ts=segs.slice(1).map(s=>s.replace(/\.+$/,"").trim()).filter(Boolean);
+      pieces.push({...x,subj,ts,two:segs.length===2});
+    }
+  }
+  // known teacher strings → split joint ones like "Jus.Ngọc", "Meryem.M.Phương", "Galileo.N.Trang"
+  const K=new Set(); pieces.forEach(x=>x.ts.forEach(t=>K.add(t)));
+  const memo=new Map();
+  function decompose(s){
+    if(memo.has(s)) return memo.get(s);
+    let out=[s];
+    for(let i=s.indexOf(".");i>0;i=s.indexOf(".",i+1)){
+      const L=s.slice(0,i), R=s.slice(i+1);
+      if(L.length<=2||!R) continue;                 // "N.Trang", "Th.Linh": viết tắt họ, không tách
+      if(K.has(L)||K.has(R)){ out=[...decompose(L),...decompose(R)]; break; }
+    }
+    memo.set(s,out); return out;
+  }
+  const codes=new Set(); pieces.forEach(x=>x.ts.forEach(t=>decompose(t).forEach(c=>codes.add(c))));
+  const lessons=pieces.map(x=>{
+    const cs=new Set(); x.ts.forEach(t=>decompose(t).forEach(c=>cs.add(c)));
+    if(x.two && codes.has(x.subj)) cs.add(x.subj);   // vd "Tristan-P.Linh"
+    return {lv:x.lv,d:x.d,p:x.p,cls:x.cls,s:x.subj,c:[...cs]};
+  }).filter(l=>l.c.length);
+  const coll=new Intl.Collator("vi",{sensitivity:"base"});
+  const lastName=c=>c.split(".").pop();
+  const codeList=[...codes].sort((a,b)=>coll.compare(lastName(a),lastName(b))||coll.compare(a,b));
+  const days=[...new Set(lessons.map(l=>l.d))].sort((a,b)=>a-b);
+  const maxPeriod=Math.max(8,...lessons.map(l=>l.p));
+  const effective=levels.map(l=>l.effective).find(Boolean)||"";
+  return {levels,lessons,codes:codeList,days,maxPeriod,effective};
+}
+
+/* =========================================================
+   3. Build the per-teacher view model
+   ========================================================= */
+const daysFor=(data,codes)=>[...new Set([2,3,4,5,6,...data.days.filter(d=>d<=7),
+  ...data.lessons.filter(l=>codes.some(c=>l.c.includes(c))).map(l=>l.d)])].sort((a,b)=>a-b);
+function buildModel(data,code,daysOverride){
+  const mine=data.lessons.filter(l=>l.c.includes(code));
+  const days=daysOverride||daysFor(data,[code]);
+  const taught=new Set(mine.map(l=>l.lv));
+  const cells={};
+  for(const l of mine){ const k=l.d+"-"+l.p; (cells[k]||(cells[k]=[])).push(l); }
+  const periods=[];
+  for(let p=1;p<=data.maxPeriod;p++){
+    const atP=[...new Set(mine.filter(l=>l.p===p).map(l=>l.lv))];
+    const lvs=atP.length?atP.sort():[taught.size?Math.min(...taught):0];
+    const ts=lvs.map(i=>({lv:data.levels[i].name,t:data.levels[i].times[p]})).filter(x=>x.t);
+    const uniq=[...new Set(ts.map(x=>x.t))];
+    const time=uniq.length<=1?[{t:uniq[0]||"",lv:""}]:ts.map(x=>({t:x.t,lv:x.lv}));
+    const row=days.map(d=>{
+      const list=cells[d+"-"+p]||[]; const bySubj=new Map();
+      list.forEach(l=>{const k=l.s; if(!bySubj.has(k)) bySubj.set(k,[]); if(!bySubj.get(k).includes(l.cls)) bySubj.get(k).push(l.cls);});
+      return [...bySubj].map(([s,cls])=>s+" - "+cls.join(", "));
+    });
+    periods.push({p,time,row});
+  }
+  const stats=data.levels.map((lv,i)=>({k:lv.name,v:new Set(mine.filter(l=>l.lv===i).map(l=>l.d+"-"+l.p)).size}));
+  const total=stats.reduce((a,b)=>a+b.v,0);
+  const extra=[];
+  data.levels.forEach(lv=>{
+    for(const [lab,map] of Object.entries(lv.info||{})){
+      const kl=key(lab); if(kl.includes("phòng")) continue;
+      const cls=Object.entries(map).filter(([,v])=>v.split(/[\/,;]/).map(s=>norm(s).replace(/\.+$/,"")).includes(code)).map(([c])=>c);
+      if(cls.length) extra.push({k:kl==="gvcn"?"Chủ nhiệm":lab,v:cls.join(", ")});
+    }
+  });
+  return {code,title:"THỜI KHÓA BIỂU - GV "+code.toLocaleUpperCase("vi"),
+          sub:data.effective?"("+data.effective+")":"",days,periods,stats,total,extra};
+}
+
+/* =========================================================
+   4. Render (HTML + PNG)
+   ========================================================= */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const optionsHTML=(codes,sel)=>codes.map(c=>`<option${c===sel?" selected":""}>${esc(c)}</option>`).join("");
+// marks: optional Map "d-p" -> {bg, bold}: tô màu ô (lớp cả 2 GV cùng dạy / tiết cùng trống)
+function tableHTML(m,cls,marks){
+  const head=`<tr><th class="hp">Tiết</th><th class="ht">Thời gian</th>${m.days.map(d=>`<th class="d">${dayLabel(d)}</th>`).join("")}</tr>`;
+  const body=m.periods.map(r=>`<tr><td class="p">Tiết ${r.p}</td><td class="t">${r.time.map(x=>esc(x.t)+(x.lv?`<small>${esc(x.lv)}</small>`:"")).join("")}</td>${
+    r.row.map((c,i)=>{const mk=marks&&marks.get(m.days[i]+"-"+r.p);
+      return `<td class="c${mk&&mk.bold?" mk":""}"${mk?` style="background:${mk.bg}"`:""}>${c.map(x=>`<span${c.length>1?' class="conf"':""}>${esc(x)}</span>`).join("")}</td>`;}).join("")}</tr>`).join("");
+  return `<table class="tkb ${cls||""}"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+function sheetHTML(m,codes,withSelect){
+  const opts=withSelect?`<select class="pick-v" id="pick" aria-label="Chọn mã giáo viên">${optionsHTML(codes,m.code)}</select>`:"";
+  const stats=m.stats.map(s=>`<tr><td class="k">${esc(s.k)}</td><td class="v">${s.v} tiết</td></tr>`).join("");
+  const extra=m.extra.map(s=>`<tr class="extra"><td class="k">${esc(s.k)}</td><td class="v">${esc(s.v)}</td></tr>`).join("");
+  return `<div class="sheet">
+    <div><h1>${esc(m.title)}</h1><div class="sub">${esc(m.sub)}</div>
+      ${tableHTML(m)}</div>
+    <aside class="side">
+      <div class="pick"><div class="pick-h">Chọn mã giáo viên ▼</div>${opts}<div class="pv">${esc(m.code)}</div></div>
+      <table class="stat"><tr><td class="h" colspan="2">THỐNG KÊ SỐ TIẾT</td></tr>${stats}
+        <tr class="tot"><td class="k">Tổng số tiết</td><td class="v">${m.total} tiết</td></tr>${extra}</table>
+    </aside></div>`;
+}
+
+// Draws one or more timetables side by side (title + table only, no stats panel).
+// marksList: one Map per model (same shape as tableHTML marks)
+function drawPNG(models,marksList){
+  const S=2, pad=28, gap=36, wP=110, wT=200, wD=210, hH=50;
+  const F=(w,sz,it)=>`${it?"italic ":""}${w} ${sz}px "Times New Roman", Times, serif`;
+  const nRows=models[0].periods.length;
+  const rowsH=[...Array(nRows)].map((_,i)=>Math.max(80,...models.map(m=>{const r=m.periods[i];
+    return Math.max(r.time.length*(r.time[0].lv?2:1),...r.row.map(c=>c.length))*26+30;})));
+  const tws=models.map(m=>wP+wT+wD*m.days.length), top=pad+90;
+  const H=top+hH+rowsH.reduce((a,b)=>a+b,0)+pad;
+  const W=pad*2+tws.reduce((a,b)=>a+b,0)+gap*(models.length-1);
+  const cv=document.createElement("canvas"); cv.width=W*S; cv.height=H*S;
+  const g=cv.getContext("2d"); g.scale(S,S); g.fillStyle="#fff"; g.fillRect(0,0,W,H);
+  const box=(x,y,w,h,fill)=>{ if(fill){g.fillStyle=fill;g.fillRect(x,y,w,h);} g.strokeStyle="#9a9a9a";g.lineWidth=1;g.strokeRect(x+.5,y+.5,w,h); };
+  const text=(t,x,y,font,color,align="center")=>{g.font=font;g.fillStyle=color;g.textAlign=align;g.textBaseline="middle";g.fillText(t,x,y);};
+  let x0=pad;
+  models.forEach((m,mi)=>{
+    const tw=tws[mi];
+    text(m.title,x0+tw/2,pad+24,F(700,models.length>1?26:30),"#000");
+    text(m.sub,x0+tw/2,pad+60,F(700,19,1),"#2E75B6");
+    let x=x0;
+    const cols=[["Tiết",wP],["Thời gian",wT],...m.days.map(d=>[dayLabel(d),wD])];
+    cols.forEach(([t,w])=>{box(x,top,w,hH,"#FFF2CC");text(t,x+w/2,top+hH/2,F(700,20),"#C00000");x+=w;});
+    let y=top+hH;
+    m.periods.forEach((r,i)=>{
+      const h=rowsH[i], bg=i%2?"#F2F2F2":"#fff"; x=x0;
+      box(x,y,wP,h,bg); text("Tiết "+r.p,x+wP/2,y+h/2,F(700,20),"#000"); x+=wP;
+      box(x,y,wT,h,bg);
+      const tl=[]; r.time.forEach(t=>{tl.push([t.t,F(700,20)]); if(t.lv) tl.push([t.lv,F(400,14)]);});
+      tl.forEach((l,j)=>text(l[0],x+wT/2,y+h/2+(j-(tl.length-1)/2)*24,l[1],"#000")); x+=wT;
+      r.row.forEach((c,di)=>{const mk=marksList&&marksList[mi]&&marksList[mi].get(m.days[di]+"-"+r.p); box(x,y,wD,h,mk?mk.bg:bg);
+        c.forEach((l,j)=>text(l,x+wD/2,y+h/2+(j-(c.length-1)/2)*26,F(mk&&mk.bold?700:400,20),c.length>1?"#C00000":"#000")); x+=wD;});
+      y+=h;
+    });
+    x0+=tw+gap;
+  });
+  return cv;
+}
+
+/* =========================================================
+   5. App state (kept in this browser) and wiring
+   ========================================================= */
+const STORE="tkb-gv-app-v1";
+let state={versions:[],current:null,code:null};
+try{ const s=JSON.parse(localStorage.getItem(STORE)||"null"); if(s&&Array.isArray(s.versions)) state=s; }catch(e){}
+function save(){
+  for(;;){
+    try{ localStorage.setItem(STORE,JSON.stringify(state)); return; }
+    catch(e){ if(state.versions.length>1){ state.versions.shift(); } else return; }
+  }
+}
+const cur=()=>state.versions.find(v=>v.id===state.current)||state.versions[state.versions.length-1];
+const $=s=>document.querySelector(s);
+function flash(text,kind){ const m=$("#msg"); m.className="msg "+(kind||"ok"); m.textContent=text; clearTimeout(flash.t); if(kind!=="err") flash.t=setTimeout(()=>m.className="msg",5000); }
+
+function render(){
+  const v=cur(); const view=$("#view");
+  $("#bar").hidden=!v;
+  if(!v){
+    if(WEB){
+      view.innerHTML=`<div class="drop"><h2>${webState==="loading"?"Đang tải TKB từ web…":"Chưa có TKB trên web"}</h2>
+        ${webState==="loading"?"<p>Chờ vài giây nhé.</p>":`<p>${webState==="error"?"Không kết nối được tới GitHub. Kiểm tra mạng rồi bấm thử lại.":"Thư mục <b>tkb</b> trên GitHub chưa có file .xlsx nào."}</p>
+        <button class="btn primary" id="btnLoad2">Tải file TKB lên</button> <button class="btn" id="btnRetry">Thử lại</button>`}</div>`;
+      $("#bar").hidden=true;
+      const b2=$("#btnLoad2"); if(b2) b2.onclick=openUpload;
+      const b3=$("#btnRetry"); if(b3) b3.onclick=()=>syncWeb(true);
+      return;
+    }
+    view.innerHTML=`<div class="drop">
+      <h2>Nạp file Thời khóa biểu</h2>
+      <p>Kéo thả file Excel (.xlsx) vào đây hoặc bấm nút bên dưới.</p>
+      <p>Hệ thống đọc các sheet TKB (THCS, THPT…), tự lọc lịch dạy theo mã giáo viên và đếm số tiết.</p>
+      <button class="btn primary" id="btnLoad2">Chọn file TKB</button>
+      <ol><li>Mỗi tuần có TKB mới: bấm <b>Nạp file TKB mới</b>.</li>
+      <li>Chọn mã giáo viên ở ô vàng, ví dụ NH.Trang.</li>
+      <li>Bấm <b>Copy ảnh</b> rồi dán (Ctrl+V) vào Zalo để gửi.</li></ol>
+      <p style="margin-top:14px;font-size:13px">Dữ liệu chỉ lưu trên máy này, không gửi đi đâu.</p></div>`;
+    $("#btnLoad2").onclick=()=>$("#file").click();
+    return;
+  }
+  const d=v.data;
+  if(!d.codes.includes(state.code)) state.code=d.codes[0];
+  if(!d.codes.includes(state.code2)||state.code2===state.code) state.code2=d.codes.find(c=>c!==state.code)||state.code;
+  const cmp=state.mode==="cmp";
+  document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",(b.dataset.mode==="cmp")===cmp));
+  if(cmp){
+    const {mA,mB,marksA,marksB,shared,nFree}=compareModels(d);
+    const panel=(m,id,lab,marks)=>`<section class="cpanel">
+      <div class="cpick"><span class="cpick-h">${lab} ▼</span><select class="pick-v" id="${id}" aria-label="${lab}">${optionsHTML(d.codes,m.code)}</select></div>
+      <h2 class="ctitle">${esc(m.title)}</h2><div class="sub">${esc(m.sub)}</div>
+      <div class="cstat">${m.stats.map(s=>`${esc(s.k)}: <b>${s.v}</b> tiết`).join(" · ")} · <span class="tot">Tổng: ${m.total} tiết</span>${
+        m.extra.map(s=>` · ${esc(s.k)}: ${esc(s.v)}`).join("")}</div>
+      ${tableHTML(m,"sm",marks)}</section>`;
+    view.innerHTML=`<div class="cmpwrap">
+      <div class="cmptools">
+        <span class="shared">Lớp cả 2 GV cùng dạy:${shared.length?shared.map(s=>`<span class="chip-c" style="background:${s.bg}">${esc(s.cls)}</span>`).join(""):'<span class="none">không có lớp chung</span>'}</span>
+        <label><input type="checkbox" id="mkFree"${state.markFree===true?" checked":""}> Tô vàng các tiết cả 2 GV cùng trống</label>
+        ${state.markFree===true?`<span class="cnt"><i></i>${nFree} tiết cùng trống</span>`:""}
+        <span class="spacer"></span>
+        <button class="btn sm" id="btnSwap" title="Đổi chỗ 2 giáo viên">⇄ Đổi chỗ</button>
+      </div>
+      <div class="cmp">${panel(mA,"pickA","Giáo viên 1",marksA)}${panel(mB,"pickB","Giáo viên 2",marksB)}</div></div>`;
+    $("#pickA").onchange=e=>{state.code=e.target.value;save();render();};
+    $("#pickB").onchange=e=>{state.code2=e.target.value;save();render();};
+    $("#mkFree").onchange=e=>{state.markFree=e.target.checked;save();render();};
+    $("#btnSwap").onclick=()=>{[state.code,state.code2]=[state.code2,state.code];save();render();};
+  } else {
+    const m=buildModel(d,state.code);
+    view.innerHTML=`<div class="sheetwrap">${sheetHTML(m,d.codes,true)}</div>
+      <p class="hint">Mã giáo viên lấy từ phần sau dấu “-” trong mỗi ô TKB. Ô chữ đỏ là trùng tiết (dạy 2 nơi cùng lúc), nên kiểm tra lại.</p>`;
+    $("#pick").onchange=e=>{state.code=e.target.value;save();render();};
+  }
+  $("#chip").innerHTML=`${v.web?'<span class="webtag">Trên web</span>':""}<b>${esc(v.fileName)}</b> · ${d.levels.map(l=>esc(l.name)).join(", ")} · ${d.codes.length} GV`;
+  $("#chip").title=`${v.fileName} · Nạp lúc ${new Date(v.importedAt).toLocaleString("vi-VN")}`;
+  const vs=sortedVersions();
+  $("#vsel").innerHTML=vs.map(x=>`<option value="${x.id}"${x.id===v.id?" selected":""}>${esc(verLabel(x,vs))}</option>`).join("");
+  $("#vsel").hidden=state.versions.length<2;
+  $("#btnSync").hidden=!WEB;
+  prepImage();
+  document.title=cmp?`So sánh TKB - ${state.code} / ${state.code2}`:"TKB - "+state.code;
+}
+const CLASS_COLORS=["#C9EBD1","#CFE3FF","#FAD4E4","#E3D7FA","#FFDDB8","#CDEFF0","#E6EDC0","#F3D9C8"];
+const FREE_BG="#FFF7CF";
+function compareModels(d){
+  const days=daysFor(d,[state.code,state.code2]);
+  const mA=buildModel(d,state.code,days), mB=buildModel(d,state.code2,days);
+  // lớp mà cả 2 GV đều có dạy (bất kể môn, bất kể giờ)
+  const clsOf=code=>new Set(d.lessons.filter(l=>l.c.includes(code)).map(l=>l.lv+"|"+l.cls));
+  const ca=clsOf(state.code), cb=clsOf(state.code2);
+  const coll=new Intl.Collator("vi",{numeric:true});
+  const shared=[...ca].filter(x=>cb.has(x)).sort((x,y)=>coll.compare(x,y))
+    .map((k,i)=>({k,cls:k.split("|").slice(1).join("|"),bg:CLASS_COLORS[i%CLASS_COLORS.length]}));
+  const colorOf=new Map(shared.map(s=>[s.k,s.bg]));
+  const marksFor=code=>{const mk=new Map();
+    d.lessons.forEach(l=>{ if(!l.c.includes(code)) return; const bg=colorOf.get(l.lv+"|"+l.cls); const k=l.d+"-"+l.p;
+      if(bg&&!mk.has(k)) mk.set(k,{bg,bold:true}); });
+    return mk;};
+  const marksA=marksFor(state.code), marksB=marksFor(state.code2);
+  let nFree=0;
+  mA.periods.forEach((r,i)=>r.row.forEach((c,di)=>{ const k=days[di]+"-"+r.p;
+    if(!c.length&&!mB.periods[i].row[di].length){ nFree++;
+      if(state.markFree===true){ marksA.set(k,{bg:FREE_BG}); marksB.set(k,{bg:FREE_BG}); } } }));
+  return {mA,mB,marksA,marksB,shared,nFree};
+}
+
+/* =========================================================
+   6. Web mode (GitHub Pages): TKB files live in the repo's "tkb" folder,
+      so every device (PC, phone) sees the same, newest timetable.
+   ========================================================= */
+const FOLDER="tkb";
+const WEB=(()=>{
+  const meta=document.querySelector('meta[name="tkb-repo"]')?.content||"";
+  if(meta.includes("/")){const [owner,repo]=meta.split("/");return {owner,repo};}
+  const h=location.hostname;
+  if(!h.endsWith(".github.io")) return null;
+  const owner=h.split(".")[0], repo=location.pathname.split("/").filter(Boolean)[0]||h;
+  return {owner,repo};
+})();
+let webState=WEB?"loading":"idle", lastSync=0;
+const dateKey=s=>{const m=String(s||"").match(/(\d{1,2})[.\-\/_](\d{1,2})[.\-\/_](\d{4})/); return m?+(m[3]+m[2].padStart(2,"0")+m[1].padStart(2,"0")):0;};
+const verKey=v=>dateKey(v.data?.effective)||dateKey(v.fileName)||0;
+const sortedVersions=()=>[...state.versions].sort((a,b)=>(verKey(b)-verKey(a))||(dateKey(b.fileName)-dateKey(a.fileName))||(b.importedAt-a.importedAt));
+const verLabel=(x,all)=>{const e=x.data.effective||x.fileName; return all.filter(y=>(y.data.effective||y.fileName)===e).length>1?e+" · "+x.fileName:e;};
+function openUpload(){
+  if(!WEB){ $("#file").click(); return; }
+  window.open(`https://github.com/${WEB.owner}/${WEB.repo}/upload/main/${FOLDER}`,"_blank","noopener");
+  flash("Trang GitHub đã mở: kéo file TKB (.xlsx) vào, bấm “Commit changes”. Khoảng 1–2 phút sau quay lại đây bấm “↻ Cập nhật” là mọi máy đều thấy TKB mới.");
+}
+async function syncWeb(force){
+  if(!WEB) return;
+  if(!force && Date.now()-lastSync<30000) return;
+  lastSync=Date.now();
+  const hadData=state.versions.some(v=>v.web);
+  if(!hadData){ webState="loading"; if(!cur()) render(); }
+  try{
+    const r=await fetch(`https://api.github.com/repos/${WEB.owner}/${WEB.repo}/contents/${FOLDER}?ref=main&t=${Date.now()}`,{cache:"no-store"});
+    if(r.status===404){ webState="empty"; state.versions=state.versions.filter(v=>!v.web); save(); render(); return; }
+    if(!r.ok) throw new Error("GitHub "+r.status);
+    const files=(await r.json()).filter(f=>f.type==="file"&&/\.xls[xm]$/i.test(f.name))
+      .sort((a,b)=>(dateKey(b.name)-dateKey(a.name))||b.name.localeCompare(a.name,"vi")).slice(0,6);
+    const keep=new Set(files.map(f=>"web:"+f.sha));
+    state.versions=state.versions.filter(v=>!v.web||keep.has(v.id));
+    let added=0;
+    for(const f of files){
+      const id="web:"+f.sha; if(state.versions.some(v=>v.id===id)) continue;
+      try{
+        const fr=await fetch(`${FOLDER}/${encodeURIComponent(f.name)}?v=${f.sha}`);
+        if(!fr.ok) throw new Error(fr.status);
+        const data=parseWorkbook(await readXlsx(await fr.arrayBuffer()));
+        state.versions.push({id,fileName:f.name,importedAt:Date.now(),data,web:true}); added++;
+      }catch(e){ console.warn("skip",f.name,e); }
+    }
+    webState=files.length?"ok":"empty";
+    const newest=sortedVersions().find(v=>v.web);
+    if(newest && newest.id!==state.lastWebNewest){ state.current=newest.id; state.lastWebNewest=newest.id;
+      if(hadData) flash(`Đã cập nhật TKB mới trên web: ${newest.data.effective||newest.fileName}.`); }
+    else if(force && hadData) flash(added?"Đã tải thêm bản TKB từ web.":"TKB trên web chưa có gì mới.");
+    save(); render();
+  }catch(e){
+    console.warn(e); webState=hadData||cur()?"ok":"error"; render();
+    if(force) flash("Không tải được TKB từ web (mất mạng hoặc GitHub tạm giới hạn). Đang dùng bản đã lưu trên máy.","err");
+  }
+}
+const isPhone=()=>/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || ((matchMedia("(pointer:coarse)").matches||navigator.maxTouchPoints>1) && Math.min(screen.width,screen.height)<820);
+
+async function importFile(file){
+  if(!file) return;
+  if(/\.xls$/i.test(file.name)) return flash("File .xls (Excel cũ) chưa đọc được. Mở bằng Excel rồi “Lưu thành” .xlsx giúp mình nhé.","err");
+  try{
+    const sheets=await readXlsx(await file.arrayBuffer());
+    const data=parseWorkbook(sheets);
+    const id=Date.now().toString(36);
+    state.versions=state.versions.filter(x=>!(x.fileName===file.name && x.data.effective===data.effective));
+    state.versions.push({id,fileName:file.name,importedAt:Date.now(),data});
+    if(state.versions.length>8) state.versions.splice(0,state.versions.length-8);
+    state.current=id; save(); render();
+    flash(`Đã nạp “${file.name}”: ${data.levels.map(l=>l.name).join(", ")}, ${data.codes.length} mã giáo viên${data.effective?" · "+data.effective:""}.`);
+  }catch(e){ console.error(e); flash("Không đọc được file: "+e.message,"err"); }
+}
+
+$("#file").onchange=e=>{importFile(e.target.files[0]); e.target.value="";};
+$("#btnLoad").onclick=openUpload;
+$("#btnSync").onclick=()=>syncWeb(true);
+$("#vsel").onchange=e=>{state.current=e.target.value;save();render();};
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{state.mode=b.dataset.mode;save();render();window.scrollTo(0,0);});
+const inClaude=()=>!!(window.claude&&typeof window.claude.use==="function");
+// Fallback when the browser refuses to put an image on the clipboard: save it as a file instead.
+async function saveImage(b,name){
+  if(inClaude()){
+    try{ const dl=await window.claude.use("downloads"); if(dl){ await dl.save({filename:name,data:b}); return true; } }
+    catch(e){ if(e&&e.code==="declined") return true; }
+    return false;
+  }
+  const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  return true;
+}
+const imgKey=()=>JSON.stringify([cur()?.id,state.mode,state.code,state.code2,state.markFree]);
+function buildImage(){
+  const d=cur().data, cmp=state.mode==="cmp";
+  let cv;   // chỉ phần tiêu đề + bảng TKB (không lấy ô chọn mã / thống kê)
+  if(cmp){ const {mA,mB,marksA,marksB}=compareModels(d); cv=drawPNG([mA,mB],[marksA,marksB]); }
+  else cv=drawPNG([buildModel(d,state.code)]);
+  const who=cmp?state.code+"_va_"+state.code2:state.code;
+  const name=`TKB_${who}_${(d.effective.match(/[\d.\/]+$/)||[""])[0].replace(/\//g,".")||"moi"}.png`;
+  return {cmp,who,name,blob:new Promise(r=>cv.toBlob(r,"image/png"))};
+}
+// Phone: prepare the image ahead so the share sheet can open right on tap (iOS needs that).
+let imgCache=null, prepT=0;
+function prepImage(){
+  if(!isPhone()||!navigator.canShare||!cur()) return;
+  clearTimeout(prepT);
+  prepT=setTimeout(async()=>{ const k=imgKey(); const im=buildImage(); const b=await im.blob;
+    if(k===imgKey()) imgCache={k,...im,file:new File([b],im.name,{type:"image/png"})}; },400);
+}
+$("#btnCopy").onclick=async e=>{
+  const btn=e.currentTarget;
+  if(isPhone() && navigator.canShare){
+    try{
+      let c=imgCache&&imgCache.k===imgKey()?imgCache:null;
+      if(!c){ const im=buildImage(); c={...im,file:new File([await im.blob],im.name,{type:"image/png"})}; }
+      if(navigator.canShare({files:[c.file]})){
+        await navigator.share({files:[c.file],title:"TKB "+c.who});
+        return;
+      }
+    }catch(err){
+      if(err&&err.name==="AbortError") return;
+      if(err&&err.name==="NotAllowedError"){ prepImage(); return flash("Ảnh đã sẵn sàng, bấm “Gửi ảnh” thêm lần nữa nhé."); }
+      console.warn(err);
+    }
+  }
+  const {cmp,who,name,blob}=buildImage();
+  try{
+    if(!navigator.clipboard||!window.ClipboardItem) throw new Error("no clipboard");
+    await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);
+    btn.textContent="Đã copy ✓"; btn.classList.add("done");
+    clearTimeout(btn._t); btn._t=setTimeout(()=>{btn.textContent=isPhone()?"Gửi ảnh":"Copy ảnh";btn.classList.remove("done");},2500);
+    flash("Đã copy ảnh TKB của "+(cmp?state.code+" và "+state.code2:state.code)+". Mở Zalo, bấm vào ô chat rồi nhấn Ctrl+V (điện thoại: giữ ô chat → Dán) để gửi.");
+  }catch(err){
+    console.warn(err);
+    const ok=await saveImage(await blob,name);
+    flash(ok?"Trình duyệt này không cho copy ảnh, nên ảnh đã được tải về máy. Gửi file ảnh đó vào Zalo nhé."
+            :"Không copy được ảnh trong khung xem này. Hãy mở file HTML trên máy bằng Chrome hoặc Edge.","err");
+  }
+};
+$("#btnClear").onclick=e=>{
+  const v=cur(), btn=e.currentTarget; if(!v) return;
+  if(v.web){ window.open(`https://github.com/${WEB.owner}/${WEB.repo}/tree/main/${FOLDER}`,"_blank","noopener");
+    return flash("Bản này nằm trên web. Muốn xóa, hãy xóa file đó trong thư mục tkb trên GitHub (trang vừa mở).","err"); }
+  if(!btn.dataset.armed){ btn.dataset.armed="1"; btn.textContent="Bấm lần nữa để xóa"; btn.style.color="#a3261c";
+    clearTimeout(btn._t); btn._t=setTimeout(()=>{delete btn.dataset.armed;btn.textContent="Xóa bản này";btn.style.color="";},3500); return; }
+  delete btn.dataset.armed; btn.textContent="Xóa bản này"; btn.style.color="";
+  state.versions=state.versions.filter(x=>x.id!==v.id); state.current=state.versions.at(-1)?.id||null; save(); render();
+};
+let dragDepth=0;
+window.addEventListener("dragenter",e=>{e.preventDefault();dragDepth++;document.body.classList.add("dragging");});
+window.addEventListener("dragleave",()=>{if(--dragDepth<=0){dragDepth=0;document.body.classList.remove("dragging");}});
+window.addEventListener("dragover",e=>e.preventDefault());
+window.addEventListener("drop",e=>{e.preventDefault();dragDepth=0;document.body.classList.remove("dragging");importFile(e.dataTransfer.files[0]);});
+if(isPhone()) $("#btnCopy").textContent="Gửi ảnh";
+render();
+if(WEB){
+  syncWeb(true);
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) syncWeb(false); });
+}
+</script>
+</body>
+</html>
