@@ -126,6 +126,12 @@
   .cmptools .shared{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .cmptools .chip-c{font-family:"Times New Roman",Times,serif;font-weight:700;font-size:14px;padding:2px 9px;border-radius:5px;border:1px solid rgba(0,0,0,.18);color:#000}
   .cmptools .none{color:var(--muted)}
+  .cmptools .cnt.co i{background:#C9EBD1;border-color:#9ccfa8}
+  .cmptools .chip-c.pk{cursor:pointer;background:#fff;font:inherit;font-family:"Times New Roman",Times,serif;font-weight:700;font-size:14px}
+  .cmptools .chip-c.pk:hover{background:#f1f7f2}
+  .cmptools .chip-c.pk.on{background:#C9EBD1;border-color:#7cbf8c}
+  /* trên máy tính: thu nhỏ còn ~90% cho cân đối (điện thoại giữ nguyên) */
+  @media (min-width:761px){ .bar,main{zoom:.9} }
   .cmp{display:grid;grid-template-columns:1fr 1fr;gap:22px;font-family:"Times New Roman",Times,serif;color:#000}
   .cpanel{min-width:0}
   .cpick{display:flex;border:1px solid var(--line);width:max-content;margin:0 auto 8px}
@@ -166,6 +172,7 @@
     .pick-h{font-size:13px;padding:6px}
     .cmptools{font-size:12px;gap:8px}
     .cstat{font-size:11px}
+    .seg button{padding:5px 7px;font-size:12px}
     .bar{position:static}
     #btnClear{display:none}
     .bar-sub .chip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92vw}
@@ -189,7 +196,7 @@
   <div class="bar-l">
     <span class="brand"><i></i>Huyền Trang BMS - Check TKB</span>
     <span class="seg" role="tablist">
-      <button data-mode="one" class="on">Xem TKB cá nhân</button><button data-mode="cmp">So sánh TKB</button>
+      <button data-mode="one" class="on">Xem TKB cá nhân</button><button data-mode="cmp">So sánh TKB 2 GV</button><button data-mode="gvl">So sánh TKB GV &amp; Lớp</button>
     </span>
   </div>
   <div class="bar-c">
@@ -322,7 +329,7 @@ function parseWorkbook(sheets){
     if(!classes.length) continue;
     let effective="", title="";
     for(let r=0;r<h.r;r++) (g[r]||[]).forEach(v=>{const t=norm(v); if(/áp dụng/i.test(t)&&!effective) effective=t.replace(/^\(|\)$/g,""); else if(/thời khóa biểu|thời khoá biểu/i.test(t)&&!title) title=t;});
-    const lv={name:norm(sh.name),effective,title,times:{},info:{}};
+    const lv={name:norm(sh.name),effective,title,times:{},info:{},classes:classes.map(c=>c.name)};
     let day=null, started=false;
     for(let r=h.r+1;r<g.length;r++){
       const row=g[r]; if(!row) continue;
@@ -377,7 +384,8 @@ function parseWorkbook(sheets){
   const days=[...new Set(lessons.map(l=>l.d))].sort((a,b)=>a-b);
   const maxPeriod=Math.max(8,...lessons.map(l=>l.p));
   const effective=levels.map(l=>l.effective).find(Boolean)||"";
-  return {levels,lessons,codes:codeList,days,maxPeriod,effective};
+  const cells=raw.map(x=>[x.lv,x.d,x.p,x.cls,x.val]);   // mọi ô TKB (kể cả chào cờ, sinh hoạt) để xem TKB theo lớp
+  return {levels,lessons,codes:codeList,days,maxPeriod,effective,cells};
 }
 
 /* =========================================================
@@ -428,8 +436,8 @@ const optionsHTML=(codes,sel)=>codes.map(c=>`<option${c===sel?" selected":""}>${
 function tableHTML(m,cls,marks){
   const head=`<tr><th class="hp">Tiết</th><th class="ht">Thời gian</th>${m.days.map(d=>`<th class="d">${dayLabel(d)}</th>`).join("")}</tr>`;
   const body=m.periods.map(r=>`<tr><td class="p">Tiết ${r.p}</td><td class="t">${r.time.map(x=>esc(x.t)+(x.lv?`<small>${esc(x.lv)}</small>`:"")).join("")}</td>${
-    r.row.map((c,i)=>{const mk=marks&&marks.get(m.days[i]+"-"+r.p);
-      return `<td class="c${mk&&mk.bold?" mk":""}"${mk?` style="background:${mk.bg}"`:""}>${c.map(x=>`<span${c.length>1?' class="conf"':""}>${esc(x)}</span>`).join("")}</td>`;}).join("")}</tr>`).join("");
+    r.row.map((c,i)=>{const mk=marks&&marks.get(m.days[i]+"-"+r.p); const conf=c.length>1&&!m.noConf;
+      return `<td class="c${mk&&mk.bold?" mk":""}"${mk?` style="background:${mk.bg}"`:""}>${c.map(x=>`<span${conf?' class="conf"':""}>${esc(x)}</span>`).join("")}</td>`;}).join("")}</tr>`).join("");
   return `<table class="tkb ${cls||""}"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 function sheetHTML(m,codes,withSelect){
@@ -477,7 +485,7 @@ function drawPNG(models,marksList){
       const tl=[]; r.time.forEach(t=>{tl.push([t.t,F(700,20)]); if(t.lv) tl.push([t.lv,F(400,14)]);});
       tl.forEach((l,j)=>text(l[0],x+wT/2,y+h/2+(j-(tl.length-1)/2)*24,l[1],"#000")); x+=wT;
       r.row.forEach((c,di)=>{const mk=marksList&&marksList[mi]&&marksList[mi].get(m.days[di]+"-"+r.p); box(x,y,wD,h,mk?mk.bg:bg);
-        c.forEach((l,j)=>text(l,x+wD/2,y+h/2+(j-(c.length-1)/2)*26,F(mk&&mk.bold?700:400,20),c.length>1?"#C00000":"#000")); x+=wD;});
+        c.forEach((l,j)=>text(l,x+wD/2,y+h/2+(j-(c.length-1)/2)*26,F(mk&&mk.bold?700:400,20),c.length>1&&!m.noConf?"#C00000":"#000")); x+=wD;});
       y+=h;
     });
     x0+=tw+gap;
@@ -529,16 +537,17 @@ function render(){
   const d=v.data;
   if(!d.codes.includes(state.code)) state.code=d.codes[0];
   if(!d.codes.includes(state.code2)||state.code2===state.code) state.code2=d.codes.find(c=>c!==state.code)||state.code;
-  const cmp=state.mode==="cmp";
-  document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",(b.dataset.mode==="cmp")===cmp));
-  if(cmp){
-    const {mA,mB,marksA,marksB,shared,nFree}=compareModels(d);
-    const panel=(m,id,lab,marks)=>`<section class="cpanel">
+  if(!["one","cmp","gvl"].includes(state.mode)) state.mode="one";
+  const cmp=state.mode==="cmp", gvl=state.mode==="gvl";
+  document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===state.mode));
+  const panel=(m,id,lab,marks)=>`<section class="cpanel">
       <div class="cpick"><span class="cpick-h">${lab} ▼</span><select class="pick-v" id="${id}" aria-label="${lab}">${optionsHTML(d.codes,m.code)}</select></div>
       <h2 class="ctitle">${esc(m.title)}</h2><div class="sub">${esc(m.sub)}</div>
       <div class="cstat">${m.stats.map(s=>`${esc(s.k)}: <b>${s.v}</b> tiết`).join(" · ")} · <span class="tot">Tổng: ${m.total} tiết</span>${
         m.extra.map(s=>` · ${esc(s.k)}: ${esc(s.v)}`).join("")}</div>
       ${tableHTML(m,"sm",marks)}</section>`;
+  if(cmp){
+    const {mA,mB,marksA,marksB,shared,nFree}=compareModels(d);
     view.innerHTML=`<div class="cmpwrap">
       <div class="cmptools">
         <span class="shared">Lớp cả 2 GV cùng dạy:${shared.length?shared.map(s=>`<span class="chip-c" style="background:${s.bg}">${esc(s.cls)}</span>`).join(""):'<span class="none">không có lớp chung</span>'}</span>
@@ -552,6 +561,23 @@ function render(){
     $("#pickB").onchange=e=>{state.code2=e.target.value;save();render();};
     $("#mkFree").onchange=e=>{state.markFree=e.target.checked;save();render();};
     $("#btnSwap").onclick=()=>{[state.code,state.code2]=[state.code2,state.code];save();render();};
+  } else if(gvl){
+    const g=gvlModels(d), cls=g.cls;
+    const right=g.mB?`<section class="cpanel">
+      <div class="cpick"><span class="cpick-h">Lớp ▼</span><select class="pick-v" id="pickC" aria-label="Lớp">${classOptionsHTML(d,state.cls)}</select></div>
+      <h2 class="ctitle">${esc(g.mB.title)}</h2><div class="sub">${esc(g.mB.sub)}</div>
+      <div class="cstat">${esc(g.mB.lvName)}: <span class="tot">${g.mB.total} tiết/tuần</span>${g.mB.gvcn?` · GVCN: <b>${esc(g.mB.gvcn)}</b>`:""}${g.mB.room?` · Phòng: ${esc(g.mB.room)}`:""}</div>
+      ${tableHTML(g.mB,"sm",g.marks)}</section>`
+      :`<section class="cpanel"><p class="none" style="padding:30px;text-align:center">Bản TKB này được nạp từ trước nên chưa có dữ liệu theo lớp.<br>Hãy nạp lại file TKB (hoặc bấm ↻ Cập nhật) để xem TKB lớp.</p></section>`;
+    view.innerHTML=`<div class="cmpwrap">
+      <div class="cmptools">
+        <span class="shared">Lớp ${esc(state.code)} dạy:${g.taught.length?g.taught.map(t=>`<button class="chip-c pk${t.k===state.cls?" on":""}" data-k="${esc(t.k)}" title="Xem TKB lớp ${esc(t.cls)}">${esc(t.cls)}</button>`).join(""):'<span class="none">không có tiết nào</span>'}</span>
+        ${g.mB?`<span class="cnt co"><i></i>Ô xanh: tiết ${esc(state.code)} dạy lớp ${esc(cls)} (${g.n} tiết)</span>`:""}
+      </div>
+      <div class="cmp">${panel(g.mA,"pickA","Giáo viên",g.marks)}${right}</div></div>`;
+    $("#pickA").onchange=e=>{state.code=e.target.value;save();render();};
+    if($("#pickC")) $("#pickC").onchange=e=>{state.cls=e.target.value;save();render();};
+    document.querySelectorAll(".chip-c.pk").forEach(b=>b.onclick=()=>{state.cls=b.dataset.k;save();render();});
   } else {
     const m=buildModel(d,state.code);
     view.innerHTML=`<div class="sheetwrap">${sheetHTML(m,d.codes,true)}</div>
@@ -565,7 +591,35 @@ function render(){
   $("#vsel").hidden=state.versions.length<2; $("#vlbl").hidden=state.versions.length<2;
   $("#btnSync").hidden=!WEB;
   prepImage();
-  document.title=cmp?`So sánh TKB - ${state.code} / ${state.code2}`:"TKB - "+state.code;
+  document.title=cmp?`So sánh TKB - ${state.code} / ${state.code2}`:gvl?`So sánh TKB - ${state.code} / lớp ${String(state.cls||"").split("|").slice(1).join("|")}`:"TKB - "+state.code;
+}
+const classKeys=d=>d.levels.flatMap((L,i)=>(L.classes||[...new Set((d.cells||[]).filter(c=>c[0]===i).map(c=>c[3]))]).map(c=>i+"|"+c));
+const classOptionsHTML=(d,sel)=>d.levels.map((L,i)=>`<optgroup label="${esc(L.name)}">${
+  (L.classes||[...new Set((d.cells||[]).filter(c=>c[0]===i).map(c=>c[3]))]).map(c=>`<option value="${esc(i+"|"+c)}"${i+"|"+c===sel?" selected":""}>${esc(c)}</option>`).join("")}</optgroup>`).join("");
+function buildClassModel(d,ck,days){
+  const i=+ck.split("|")[0], cls=ck.split("|").slice(1).join("|"), L=d.levels[i];
+  const cells=d.cells.filter(c=>c[0]===i&&c[3]===cls);
+  const at={}; cells.forEach(c=>{ const k=c[1]+"-"+c[2]; (at[k]||(at[k]=[])).push(c[4]); });
+  const fmt=v=>v.split("/").map(part=>part.split("-").map(norm).filter(Boolean).join(" - ")).filter(Boolean);
+  const periods=[];
+  for(let p=1;p<=d.maxPeriod;p++) periods.push({p,time:[{t:L.times[p]||"",lv:""}],row:days.map(dd=>(at[dd+"-"+p]||[]).flatMap(fmt))});
+  const info=k=>{ for(const [lab,map] of Object.entries(L.info||{})) if(k(key(lab))&&map[cls]) return map[cls]; return ""; };
+  return {code:cls,title:"THỜI KHÓA BIỂU - LỚP "+cls.toLocaleUpperCase("vi"),sub:d.effective?"("+d.effective+")":"",days,periods,
+    total:Object.keys(at).length,lvName:L.name,gvcn:info(k=>k==="gvcn"),room:info(k=>k.includes("phòng")),noConf:true};
+}
+function gvlModels(d){
+  const code=state.code, keys=classKeys(d);
+  const mine=d.lessons.filter(l=>l.c.includes(code));
+  const coll=new Intl.Collator("vi",{numeric:true});
+  const taught=[...new Set(mine.map(l=>l.lv+"|"+l.cls))].sort((a,b)=>coll.compare(a,b)).map(k=>({k,cls:k.split("|").slice(1).join("|")}));
+  if(!keys.includes(state.cls)) state.cls=taught[0]?.k||keys[0];
+  const cls=String(state.cls).split("|").slice(1).join("|"), lvI=+String(state.cls).split("|")[0];
+  const days=[...new Set([...daysFor(d,[code]),...(d.cells||[]).filter(c=>c[0]===lvI&&c[3]===cls&&c[1]<=7).map(c=>c[1])])].sort((a,b)=>a-b);
+  const mA=buildModel(d,code,days);
+  const mB=d.cells?buildClassModel(d,state.cls,days):null;
+  const marks=new Map();
+  mine.forEach(l=>{ if(l.lv+"|"+l.cls===state.cls) marks.set(l.d+"-"+l.p,{bg:"#C9EBD1",bold:true}); });
+  return {mA,mB,marks,n:marks.size,taught,cls};
 }
 const CLASS_COLORS=["#C9EBD1","#CFE3FF","#FAD4E4","#E3D7FA","#FFDDB8","#CDEFF0","#E6EDC0","#F3D9C8"];
 const FREE_BG="#FFF7CF";
@@ -746,7 +800,8 @@ async function syncWeb(force){
     state.versions=state.versions.filter(v=>!v.web||keep.has(v.id));
     let added=0;
     for(const f of files){
-      const id="web:"+f.sha; if(state.versions.some(v=>v.id===id)) continue;
+      const id="web:"+f.sha; if(state.versions.some(v=>v.id===id&&v.data.cells)) continue;
+      state.versions=state.versions.filter(v=>v.id!==id);
       try{
         let fr=await fetch(`${FOLDER}/${encodeURIComponent(f.name)}?v=${f.sha}`);
         if(!fr.ok) fr=await ghGet(`${API()}/git/blobs/${f.sha}`,{Accept:"application/vnd.github.raw"});   // Pages chưa kịp cập nhật
@@ -797,15 +852,15 @@ async function saveImage(b,name){
   document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
   return true;
 }
-const imgKey=()=>JSON.stringify([cur()?.id,state.mode,state.code,state.code2,state.markFree]);
+const imgKey=()=>JSON.stringify([cur()?.id,state.mode,state.code,state.code2,state.markFree,state.cls]);
 function buildImage(){
-  const d=cur().data, cmp=state.mode==="cmp";
-  let cv;   // chỉ phần tiêu đề + bảng TKB (không lấy ô chọn mã / thống kê)
-  if(cmp){ const {mA,mB,marksA,marksB}=compareModels(d); cv=drawPNG([mA,mB],[marksA,marksB]); }
+  const d=cur().data, cmp=state.mode==="cmp", gvl=state.mode==="gvl";
+  let cv, who=state.code;   // chỉ phần tiêu đề + bảng TKB (không lấy ô chọn mã / thống kê)
+  if(cmp){ const {mA,mB,marksA,marksB}=compareModels(d); cv=drawPNG([mA,mB],[marksA,marksB]); who=state.code+"_va_"+state.code2; }
+  else if(gvl){ const g=gvlModels(d); cv=g.mB?drawPNG([g.mA,g.mB],[g.marks,g.marks]):drawPNG([g.mA]); who=state.code+"_lop_"+g.cls; }
   else cv=drawPNG([buildModel(d,state.code)]);
-  const who=cmp?state.code+"_va_"+state.code2:state.code;
   const name=`TKB_${who}_${(d.effective.match(/[\d.\/]+$/)||[""])[0].replace(/\//g,".")||"moi"}.png`;
-  return {cmp,who,name,blob:new Promise(r=>cv.toBlob(r,"image/png"))};
+  return {cmp:cmp||gvl,who:who.replace(/_/g," ").replace(" va "," và ").replace(" lop "," – lớp "),name,blob:new Promise(r=>cv.toBlob(r,"image/png"))};
 }
 // Phone: prepare the image ahead so the share sheet can open right on tap (iOS needs that).
 let imgCache=null, prepT=0;
@@ -837,7 +892,7 @@ $("#btnCopy").onclick=async e=>{
     await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);
     btn.textContent="Đã copy ✓"; btn.classList.add("done");
     clearTimeout(btn._t); btn._t=setTimeout(()=>{btn.textContent=isPhone()?"Gửi ảnh":"Copy ảnh";btn.classList.remove("done");},2500);
-    flash("Đã copy ảnh TKB của "+(cmp?state.code+" và "+state.code2:state.code)+". Mở Zalo, bấm vào ô chat rồi nhấn Ctrl+V (điện thoại: giữ ô chat → Dán) để gửi.");
+    flash("Đã copy ảnh TKB của "+who+". Mở Zalo, bấm vào ô chat rồi nhấn Ctrl+V (điện thoại: giữ ô chat → Dán) để gửi.");
   }catch(err){
     console.warn(err);
     const ok=await saveImage(await blob,name);
